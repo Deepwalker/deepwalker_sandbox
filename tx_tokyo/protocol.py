@@ -22,6 +22,13 @@ class TyrantError(Exception):
 MAGIC_NUMBER = 0xc8
 ENCODING = 'UTF-8'
 
+# Table Types
+DB_BTREE  = 'B+ tree'
+DB_TABLE  = 'table'
+DB_MEMORY = 'on-memory hash'
+DB_HASH   = 'hash'
+
+TABLE_COLUMN_SEP = '\x00'
 
 def _ulen(expr):
     return len(expr.encode(ENCODING)) \
@@ -62,60 +69,78 @@ class TyrantProtocol(protocol.Protocol):
     """
 
     # Protocol commands
-    PUT = 0x10
-    PUTKEEP = 0x11
-    PUTCAT = 0x12
-    PUTSHL = 0x13
-    PUTNR = 0x18
-    OUT = 0x20
-    GET = 0x30
-    MGET = 0x31
-    VSIZ = 0x38
-    ITERINIT = 0x50
-    ITERNEXT = 0x51
-    FWMKEYS = 0x58
-    ADDINT = 0x60
+
+    PUT       = 0x10
+    PUTKEEP   = 0x11
+    PUTCAT    = 0x12
+    PUTSHL    = 0x13
+    PUTNR     = 0x18
+    OUT       = 0x20
+    GET       = 0x30
+    MGET      = 0x31
+    VSIZ      = 0x38
+    ITERINIT  = 0x50
+    ITERNEXT  = 0x51
+    FWMKEYS   = 0x58
+    ADDINT    = 0x60
     ADDDOUBLE = 0x61
-    EXT = 0x68
-    SYNC = 0x70
-    VANISH = 0x72
-    COPY = 0x73
-    RESTORE = 0x74
-    SETMST = 0x78
-    RNUM = 0x80
-    SIZE = 0x81
-    STAT = 0x88
-    MISC = 0x90
+    EXT       = 0x68
+    SYNC      = 0x70
+    VANISH    = 0x72
+    COPY      = 0x73
+    RESTORE   = 0x74
+    SETMST    = 0x78
+    RNUM      = 0x80
+    SIZE      = 0x81
+    STAT      = 0x88
+    MISC      = 0x90
 
     # Query conditions
-    RDBQCSTREQ = 0    # string is equal to 
-    RDBQCSTRINC = 1   # string is included in 
-    RDBQCSTRBW = 2    # string begins with 
-    RDBQCSTREW = 3    # string ends with 
-    RDBQCSTRAND = 4   # string includes all tokens in 
-    RDBQCSTROR = 5    # string includes at least one token in 
-    RDBQCSTROREQ = 6  # string is equal to at least one token in 
-    RDBQCSTRRX = 7    # string matches regular expressions of 
-    RDBQCNUMEQ = 8    # number is equal to 
-    RDBQCNUMGT = 9    # number is greater than 
-    RDBQCNUMGE = 10   # number is greater than or equal to 
-    RDBQCNUMLT = 11   # number is less than 
-    RDBQCNUMLE = 12   # number is less than or equal to 
-    RDBQCNUMBT = 13   # number is between two tokens of 
-    RDBQCNUMOREQ = 14 # number is equal to at least one token in 
-    RDBQCNEGATE = 15  # negation flag 
-    RDBQCNOIDX = 16   # no index flag 
 
-    # Order
-    RDBQOSTRASC = 0   # string ascending 
-    RDBQOSTRDESC = 1  # string descending 
-    RDBQONUMASC = 2   # number ascending 
-    RDBQONUMDESC = 3  # number descending 
+    RDBQCSTREQ   = 0     # string is equal to
+    RDBQCSTRINC  = 1     # string is included in
+    RDBQCSTRBW   = 2     # string begins with
+    RDBQCSTREW   = 3     # string ends with
+    RDBQCSTRAND  = 4     # string includes all tokens in
+    RDBQCSTROR   = 5     # string includes at least one token in
+    RDBQCSTROREQ = 6     # string is equal to at least one token in
+    RDBQCSTRRX   = 7     # string matches regular expressions of
+    RDBQCNUMEQ   = 8     # number is equal to
+    RDBQCNUMGT   = 9     # number is greater than
+    RDBQCNUMGE   = 10    # number is greater than or equal to
+    RDBQCNUMLT   = 11    # number is less than
+    RDBQCNUMLE   = 12    # number is less than or equal to
+    RDBQCNUMBT   = 13    # number is between two tokens of
+    RDBQCNUMOREQ = 14    # number is equal to at least one token in
+    RDBQCFTSPH   = 15    # full-text search with the phrase of
+    RDBQCFTSAND  = 16    # full-text search with all tokens in
+    RDBQCFTSOR   = 17    # full-text search with at least one token in
+    RDBQCFTSEX   = 18    # full-text search with the compound expression of
 
-    # Opts
-    RDBMONOULOG = 1
-    RDBXOLCKREC = 1
-    RDBXOLCKGLB = 2
+    RDBQCNEGATE  = 1 << 24    # negation flag
+    RDBQCNOIDX   = 1 << 25    # no index flag
+
+    # Order types
+
+    RDBQOSTRASC  = 0    # string ascending
+    RDBQOSTRDESC = 1    # string descending
+    RDBQONUMASC  = 2    # number ascending
+    RDBQONUMDESC = 3    # number descending
+
+    # Operation types
+
+    TDBMSUNION = 0    # union
+    TDBMSISECT = 1    # intersection
+    TDBMSDIFF  = 2    # difference
+
+    # Miscellaneous operation options
+
+    RDBMONOULOG = 1    # omission of update log
+
+    # Scripting extension options
+
+    RDBXOLCKREC = 1    # record locking
+    RDBXOLCKGLB = 2    # global locking
 
     conditionsmap = {
         # String conditions
@@ -167,6 +192,7 @@ class TyrantProtocol(protocol.Protocol):
         fail_code = yield self.recv(1)
         fail_code = ord(fail_code)
         if fail_code:
+            print "Error: fail_code"
             raise TyrantError(fail_code)
         defer.returnValue(True)
 
@@ -414,19 +440,75 @@ class TyrantProtocol(protocol.Protocol):
         res = yield self.get_unicode()
         defer.returnValue(res)
 
-    def search(self, conditions, limit=10, offset=0, 
-               order_type=0, order_field=None, opts=0):
-        """Search table elements. args should be (field, opt, expr) tuple
+    def search(self, conditions, limit=10, offset=0,
+               order_type=0, order_column=None, opts=0,
+               ms_conditions=None, ms_type=None, columns=None,
+               out=False, count=False, hint=False):
         """
-        args = ["addcond\x00%s\x00%d\x00%s" % cond for cond in conditions]
+        Returns list of keys for elements matching given ``conditions``. 
 
-        # Set order in query
-        if order_field:
-            args += ['setorder\x00%s\x00%d' % (order_field, order_type)]
+        :param conditions: a list of tuples in the form ``(column, op, expr)``
+            where `column` is name of a column and `op` is operation code (one of
+            TyrantProtocol.RDBQC[...]). The conditions are implicitly combined
+            with logical AND. See `ms_conditions` and `ms_type` for more complex
+            operations.
+        :param limit: integer. Defaults to 10.
+        :param offset: integer. Defaults to 0.
+        :param order_column: string; if defined, results are sorted by this
+            column using default or custom ordering method.
+        :param order_type: one of TyrantProtocol.RDBQO[...]; if defined along
+            with `order_column`, results are sorted by the latter using given
+            method. Default is RDBQOSTRASC.
+        :param opts:
+        :param ms_conditions: MetaSearch conditions.
+        :param ms_type: MetaSearch operation type.
+        :param columns: iterable; if not empty, returns only given columns for
+            matched records.
+        :param out: boolean; if True, all items that correspond to the query are
+            deleted from the database when the query is executed.
+        :param count: boolean; if True, the return value is the number of items
+            that correspond to the query.
+        :param hint: boolean; if True, the hint string is added to the return
+            value.
+        """
+        # sanity check
+        assert limit  is None or 0 <= limit, 'wrong limit value "%s"' % limit
+        assert offset is None or 0 <= offset, 'wrong offset value "%s"' % offset
+        assert ms_type in (None, self.TDBMSUNION, self.TDBMSISECT, self.TDBMSDIFF)
+        assert order_type in (self.RDBQOSTRASC, self.RDBQOSTRDESC,
+                              self.RDBQONUMASC, self.RDBQONUMDESC) 
+        
+        # conditions
+        args = ['addcond\x00%s\x00%d\x00%s' % cond for cond in conditions]
 
-        # Set limit and offset
-        if limit > 0 and offset >= 0:
+        # MetaSearch support (multiple additional queries, one Boolean operation)
+        if ms_type is not None and ms_conditions:
+            args += ['mstype\x00%s' % ms_type]
+            for conds in ms_conditions:
+                args += ['next']
+                args += ['addcond\x00%s\x00%d\x00%s' % cond for cond in conds]
+
+        # return only selected columns
+        if columns:
+            args += ['get\x00%s' % '\x00'.join(columns)]
+
+        # set order in query
+        if order_column:
+            args += ['setorder\x00%s\x00%d' % (order_column, order_type)]
+
+        # set limit and offset
+        if limit:   # and 0 <= offset:
             args += ['setlimit\x00%d\x00%d' % (limit, offset)]
+
+        # drop all records yielded by the query
+        if out:
+            args += ['out']
+
+        if count:
+            args += ['count']
+
+        if hint:
+            args += ['hint']
 
         return self.misc('search', args, opts)
 
