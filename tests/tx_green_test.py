@@ -1,18 +1,18 @@
 from twisted.internet import defer, protocol, reactor
-from tx_green import inlineCallbacks, wait
+from tx_green import make_it_green, wait
 
 from tx_tokyo import TyrantProtocol, TyrantError
 
 def pr(res):
     print "Callback:",res
 
-@inlineCallbacks
+@make_it_green
 def test_fail():
     print "kuku!"
     return 0/0
 
 from twisted.web import client
-@inlineCallbacks
+@make_it_green
 def test_proto():
     cc = wait(protocol.ClientCreator(reactor, TyrantProtocol).connectTCP("127.0.0.1",1978))
     try:

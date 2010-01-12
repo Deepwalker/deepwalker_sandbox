@@ -1,8 +1,8 @@
 from twisted.internet import reactor
-from tx_green import inlineCallbacks
+from tx_green import make_it_green
 from tx_tokyo import Tyrant
 
-@inlineCallbacks
+@make_it_green
 def test_proto():
     t = Tyrant() 
     print t.get_stats()

@@ -7,6 +7,8 @@ from twisted.internet import defer, protocol, reactor
 from twisted.python.util import mergeFunctionMetadata
 from twisted.python import failure
 
+__all__ = ('wait', 'make_it_green')
+
 ############################
 # main = greenlet().parent
 
@@ -67,7 +69,7 @@ def _inlineCallbacks(result, g, argsp, deferred):
 
     return deferred
 
-def inlineCallbacks(f):
+def make_it_green(f):
     def unwindGenerator(*args, **kwargs):
         g = greenlet(f)
         # Похоже, что такой тупой ход парента не меняет.

@@ -1,5 +1,5 @@
 from twisted.internet import reactor
-from tx_green import inlineCallbacks
+from tx_green import make_it_green
 from tx_tokyo import Tyrant
 
 from models import Model, Property, Date, Reference
@@ -35,7 +35,7 @@ class Person(Model):
     class Meta:
         must_have = {'type': 'person'}
 
-@inlineCallbacks
+@make_it_green
 def test_proto():
     t = Tyrant() 
     john = Person('test___0001', first_name='John', birth_date='1901-02-03', last_name='Doe')
