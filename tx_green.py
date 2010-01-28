@@ -12,7 +12,7 @@ __all__ = ('wait', 'make_it_green')
 ############################
 # main = greenlet().parent
 
-def _inlineCallbacks(result, g, argsp, deferred):
+def _inline_greens(result, g, argsp, deferred):
     waiting = [True, # waiting for result?
                None] # result
 
@@ -47,7 +47,7 @@ def _inlineCallbacks(result, g, argsp, deferred):
                     waiting[0] = False
                     waiting[1] = r
                 else:
-                    _inlineCallbacks(r, g, None, deferred)
+                    _inline_greens(r, g, None, deferred)
 
             result.addBoth(gotResult)
             if waiting[0]:
@@ -75,8 +75,13 @@ def make_it_green(f):
         # Похоже, что такой тупой ход парента не меняет.
         # Также похоже, что и без него работает, оставляя выполнение в текущем гринлете.
         #g.parent = main
-        return _inlineCallbacks(None, g, (args, kwargs), defer.Deferred())
+        return _inline_greens(None, g, (args, kwargs), defer.Deferred())
     return mergeFunctionMetadata(f, unwindGenerator)
 
 def wait(d):
     return greenlet.getcurrent().parent.switch(d)
+
+def wait_decor(f):
+    def wait_f(*args,**kwargs):
+        return wait(f(*args,**kwargs))
+    return wait_f
